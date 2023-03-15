@@ -35,6 +35,9 @@ $ npm install
 ## Running the app
 
 ```bash
+# Redis string
+- Feel free to update the REDIS_URI value located in src/common/constants.ts with one that runs in your eniroment. 
+
 # development
 $ npm run start
 
