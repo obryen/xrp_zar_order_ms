@@ -1,20 +1,18 @@
 import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { REDIS_URI } from '../../common/constants';
 import { createClient } from 'redis';
-import { Decimal } from 'decimal.js';
+import { Decimal  } from 'decimal.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as util from 'util';
 import { OrderRequestDto, OrderResponseDto, SideEnum, UpdateOrderDto } from './dtos/order-dtos';
 import Redis from 'ioredis';
 
 
-
+const MAX_DECIMAL_PLACES = 6;
 @Injectable()
 export class OrdersService {
   private readonly redisClient: Redis;
   logger: Logger;
-  private readonly baseCurrency = 'XRP';
-  private readonly quoteCurrency = 'ZAR';
 
   constructor() {
     this.logger = new Logger('OrdersService');
@@ -22,7 +20,8 @@ export class OrdersService {
 
   }
 
-  private initializeClient(serviceName: string) {
+
+  initializeClient(serviceName: string) {
     const redisClient = new Redis(REDIS_URI);
 
     redisClient.on('ready', () => {
@@ -46,7 +45,7 @@ export class OrdersService {
     return redisClient;
   }
 
-  private validateAndStandardizeInput(payLoad: OrderRequestDto): OrderRequestDto {
+  validateAndStandardizeInput(payLoad: OrderRequestDto): OrderRequestDto {
     // Validate request payload
     if (!payLoad || !payLoad.price || !payLoad.quote_amount || !payLoad.side) {
       throw new BadRequestException('Invalid payload');
@@ -63,12 +62,21 @@ export class OrdersService {
     }
   }
 
+  convertQuoteAmountToBaseAmount(price: Decimal, quoteAmount: Decimal): Decimal {
+    const baseAmount = quoteAmount.dividedBy(price);
+    return baseAmount.toDP(MAX_DECIMAL_PLACES,1);
+  }
+
   async createOrder(payLoad: OrderRequestDto): Promise<OrderResponseDto> {
 
     const validatedPayload = this.validateAndStandardizeInput(payLoad)
 
     const uuid = uuidv4();
-    const baseAmount = new Decimal(validatedPayload.quote_amount).dividedBy(validatedPayload.price);
+    const baseAmount = this.convertQuoteAmountToBaseAmount(
+      new Decimal(validatedPayload.price),
+      new Decimal(validatedPayload.quote_amount)
+    );
+    // const baseAmount = new Decimal(validatedPayload.quote_amount).dividedBy(validatedPayload.price);
     const valueToStore: OrderResponseDto = {
       ...validatedPayload,
       base_amount: baseAmount,
@@ -106,11 +114,17 @@ export class OrdersService {
   async updateOrder(payload: UpdateOrderDto): Promise<OrderResponseDto> {
     const { uuid, price, quote_amount } = payload
     const exisitingOrder = await this.getOrder(uuid);
+    const newQuoteAmount = quote_amount || exisitingOrder.quote_amount;
+    const newPriceAmount = price || exisitingOrder.price
+
     const updatedOrder: OrderResponseDto = {
       uuid,
       price: price !== undefined ? new Decimal(price) : exisitingOrder.price,
       quote_amount: quote_amount !== undefined ? new Decimal(quote_amount) : exisitingOrder.quote_amount,
-      base_amount: new Decimal(quote_amount || exisitingOrder.quote_amount).dividedBy(price || exisitingOrder.price),
+      base_amount: this.convertQuoteAmountToBaseAmount(
+        new Decimal(newPriceAmount),
+        new Decimal(newQuoteAmount)
+      ),
       side: exisitingOrder.side,
     };
     try {
