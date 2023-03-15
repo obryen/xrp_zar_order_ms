@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { REDIS_URI } from '../../common/constants';
 import { createClient } from 'redis';
-import { Decimal  } from 'decimal.js';
+import { Decimal } from 'decimal.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as util from 'util';
 import { OrderRequestDto, OrderResponseDto, SideEnum, UpdateOrderDto } from './dtos/order-dtos';
@@ -64,7 +64,7 @@ export class OrdersService {
 
   convertQuoteAmountToBaseAmount(price: Decimal, quoteAmount: Decimal): Decimal {
     const baseAmount = quoteAmount.dividedBy(price);
-    return baseAmount.toDP(MAX_DECIMAL_PLACES,1);
+    return baseAmount.toDP(MAX_DECIMAL_PLACES, 1);
   }
 
   async createOrder(payLoad: OrderRequestDto): Promise<OrderResponseDto> {
@@ -113,6 +113,10 @@ export class OrdersService {
 
   async updateOrder(payload: UpdateOrderDto): Promise<OrderResponseDto> {
     const { uuid, price, quote_amount } = payload
+    if (price && quote_amount) {
+      throw new BadRequestException('only the price or only the amount should be submitted,')
+    }
+  
     const exisitingOrder = await this.getOrder(uuid);
     const newQuoteAmount = quote_amount || exisitingOrder.quote_amount;
     const newPriceAmount = price || exisitingOrder.price
