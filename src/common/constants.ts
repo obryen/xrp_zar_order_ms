@@ -1,0 +1,1 @@
+export const REDIS_URI = 'redis://default@localhost:6379';

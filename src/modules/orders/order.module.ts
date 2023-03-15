@@ -6,10 +6,7 @@ import { OrdersService } from './order.service';
 
 @Module({
   imports: [
-    // RedisModule.register({
-    //   host: 'localhost',
-    //   port: 6379,
-    // }),
+
   ],
   controllers: [OrdersController],
   providers: [OrdersService],
